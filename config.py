@@ -9,6 +9,10 @@ def env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
+def boolean(name: str, default: str = "false") -> bool:
+    return env(name, default).lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Config:
     api_key: str
@@ -26,6 +30,9 @@ class Config:
     timeout: int
     news_enabled: bool
     news_max_items: int
+    max_quote_age_seconds: int
+    min_market_sources: int
+    min_confidence: float
     gate_base_url: str
 
     @classmethod
@@ -45,10 +52,13 @@ class Config:
             loop_seconds=int(env("LOOP_SECONDS", "300")),
             run_mode=mode,
             live_confirmation=env("LIVE_CONFIRMATION"),
-            live_armed=env("LIVE_ARMED", "false").lower() == "true",
+            live_armed=boolean("LIVE_ARMED"),
             timeout=int(env("DATA_TIMEOUT_SECONDS", "10")),
-            news_enabled=env("NEWS_ENABLED", "true").lower() == "true",
+            news_enabled=boolean("NEWS_ENABLED", "true"),
             news_max_items=int(env("NEWS_MAX_ITEMS", "20")),
+            max_quote_age_seconds=int(env("MAX_QUOTE_AGE_SECONDS", "30")),
+            min_market_sources=int(env("MIN_MARKET_SOURCES", "3")),
+            min_confidence=float(env("MIN_SIGNAL_CONFIDENCE", "0.70")),
             gate_base_url=env("GATE_API_BASE_URL", "https://api.gateio.ws").rstrip("/"),
         )
 
