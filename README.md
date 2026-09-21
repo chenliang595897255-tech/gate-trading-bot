@@ -1,44 +1,46 @@
-# Gate.io Bot：多源数据增强
+# Gate.io Bot：真实交易系统增强版
 
-当前数据层从以下公开来源获取行情：
+本版本增加了基础的生产化交易组件：
 
-- Gate.io
-- Binance
-- Kraken
-- Coinbase
+- 通过 Gate.io 私有 API 读取余额和锁定余额
+- 下单前进行持仓、余额、仓位和每日亏损检查
+- 使用客户端订单标识，减少重复下单风险
+- 使用原子写入保存本地状态
+- 数据源不足时 fail-closed
+- 实盘模式和 paper 模式仍然严格分离
 
-资讯层读取公开 RSS：
+## 运行模式
 
-- CoinDesk
-- Cointelegraph
-- Decrypt
-
-系统使用中位数价格、跨平台价格离散度和 24 小时动量生成信号。新闻只做记录和审计，不能单独触发交易。
-
-## 新增安全机制
-
-- 最少健康行情源数量：`MIN_MARKET_SOURCES`
-- 报价最大允许年龄：`MAX_QUOTE_AGE_SECONDS`
-- 价格使用中位数，降低单一异常源影响
-- 任一关键数据不足时 fail-closed，只记录错误，不下单
-- 记录失败源、过期源、价格离散度和资讯失败数
-- 实盘仍然默认关闭，并继续阻止 SELL，直到完成真实持仓同步
-
-示例配置：
+默认使用 paper：
 
 ```dotenv
 RUN_MODE=paper
 LIVE_ARMED=false
-MIN_MARKET_SOURCES=3
-MAX_QUOTE_AGE_SECONDS=30
-MIN_SIGNAL_CONFIDENCE=0.70
+LIVE_CONFIRMATION=
 ```
 
-## 运行
+实盘必须明确设置：
 
-```bash
-pip install -r requirements.txt
-python main.py
+```dotenv
+RUN_MODE=live
+LIVE_ARMED=true
+LIVE_CONFIRMATION=I_UNDERSTAND_RISK
 ```
 
-首次及长期运行都建议使用 `RUN_MODE=paper`。多源数据不能保证准确或盈利；不同平台的交易对、稳定币价格、延迟和流动性不同，实际生产系统还应增加缓存、重试退避、限频、持久化、订单簿滑点估计、余额/持仓 reconciliation、监控告警和人工急停。
+API Key 只应开启读取和交易权限，禁止提现，并尽量绑定固定 IP。
+
+## 重要限制
+
+在真正投入资金前仍需完成：
+
+- 下单后订单状态轮询和成交量确认
+- 订单超时撤销与重试去重
+- 交易所精度、最小数量和最小金额校验
+- 手续费、滑点、部分成交和失败订单处理
+- 本地状态与交易所账本的定期 reconciliation
+- 全局熔断、人工急停、告警和监控
+- 只允许白名单交易对
+
+当前代码会先读取真实账户余额再判断风险；但是任何实盘系统都应先在 paper 环境长期运行，并用极小金额进行人工监督测试。
+
+不要把 `.env`、API Secret 或 `data/bot_state.json` 提交到 GitHub。此软件不保证盈利。
