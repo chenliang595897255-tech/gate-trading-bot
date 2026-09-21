@@ -20,9 +20,9 @@ class Config:
     stop_loss_percent: float
     take_profit_percent: float
     loop_seconds: int
-    dry_run: bool
-    live_enabled: bool
+    run_mode: str
     live_confirmation: str
+    live_armed: bool
     timeout: int
     news_enabled: bool
     news_max_items: int
@@ -30,6 +30,9 @@ class Config:
 
     @classmethod
     def from_env(cls) -> "Config":
+        mode = env("RUN_MODE", "paper").lower()
+        if mode not in {"paper", "live"}:
+            raise ValueError("RUN_MODE must be paper or live")
         return cls(
             api_key=env("GATE_API_KEY"),
             api_secret=env("GATE_API_SECRET"),
@@ -40,9 +43,9 @@ class Config:
             stop_loss_percent=float(env("STOP_LOSS_PERCENT", "0.02")),
             take_profit_percent=float(env("TAKE_PROFIT_PERCENT", "0.04")),
             loop_seconds=int(env("LOOP_SECONDS", "300")),
-            dry_run=env("DRY_RUN", "true").lower() == "true",
-            live_enabled=env("LIVE_TRADING_ENABLED", "false").lower() == "true",
+            run_mode=mode,
             live_confirmation=env("LIVE_CONFIRMATION"),
+            live_armed=env("LIVE_ARMED", "false").lower() == "true",
             timeout=int(env("DATA_TIMEOUT_SECONDS", "10")),
             news_enabled=env("NEWS_ENABLED", "true").lower() == "true",
             news_max_items=int(env("NEWS_MAX_ITEMS", "20")),
@@ -50,10 +53,10 @@ class Config:
         )
 
     def live_orders_allowed(self) -> bool:
-        return (
-            not self.dry_run
-            and self.live_enabled
-            and self.live_confirmation == "I_UNDERSTAND_RISK"
-            and bool(self.api_key)
-            and bool(self.api_secret)
-        )
+        return all((
+            self.run_mode == "live",
+            self.live_armed,
+            self.live_confirmation == "I_UNDERSTAND_RISK",
+            bool(self.api_key),
+            bool(self.api_secret),
+        ))

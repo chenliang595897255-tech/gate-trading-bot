@@ -1,38 +1,83 @@
-# Gate.io 多源数据交易机器人
+# Gate.io Bot：回测、模拟盘、实盘严格分离
 
-本版本从 Gate.io、Binance、Coinbase 获取公开行情，并从公开 RSS 获取新闻标题；随后计算跨源价格一致性和短期动量，生成 BUY/SELL/HOLD 决策。
+本项目现在有两条完全不同的路径：
 
-## 重要安全说明
+- `backtest.py`：离线读取 CSV，只做历史回测，不加载 API 密钥，也不联网下单。
+- `main.py` + `RUN_MODE=paper`：读取实时公开数据，只输出交易提案，不下单。
+- `main.py` + `RUN_MODE=live`：只有显式完成多重安全确认后才允许发送 Gate.io 买单。
 
-默认只生成交易提案，不会下单。必须同时满足以下条件才允许 BUY 实盘下单：
+## 1. 离线回测
 
-```dotenv
-DRY_RUN=false
-LIVE_TRADING_ENABLED=true
-LIVE_CONFIRMATION=I_UNDERSTAND_RISK
+准备一个至少含有 `close` 列的 CSV：
+
+```csv
+close
+100
+101
+...
 ```
 
-代码不会读取 Gate.io 登录密码，只使用 API Key/API Secret。API Key 必须关闭提现权限并尽量绑定 IP。新闻和网络数据是不可靠输入，不能保证盈利，也不能自动视为事实。
-
-本版本对 SELL 默认不发送订单，因为卖出前必须同步并验证真实持仓，避免本地状态与交易所状态不一致导致错误下单。
-
-## 安装运行
+运行：
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+python backtest.py prices.csv --cash 1000 --order-usdt 20 --fee 0.001
+```
+
+回测只用于评估策略，不代表未来收益。不要把回测收益直接当作实盘预期。
+
+## 2. 模拟盘 / paper 模式
+
+复制配置：
+
+```bash
 cp .env.example .env
+```
+
+必须保持：
+
+```dotenv
+RUN_MODE=paper
+LIVE_ARMED=false
+LIVE_CONFIRMATION=
+```
+
+运行：
+
+```bash
 python main.py
 ```
 
-Windows PowerShell：
+该模式可以读取行情和新闻，但只记录 `PAPER PROPOSAL ONLY`，不会调用下单接口。
 
-```powershell
-.venv\\Scripts\\activate
-pip install -r requirements.txt
-Copy-Item .env.example .env
-python main.py
+## 3. 实盘模式安全闸门
+
+实盘不是默认模式。必须明确设置全部值：
+
+```dotenv
+RUN_MODE=live
+LIVE_ARMED=true
+LIVE_CONFIRMATION=I_UNDERSTAND_RISK
+GATE_API_KEY=你的API_Key
+GATE_API_SECRET=你的API_Secret
 ```
 
-先保持 `DRY_RUN=true`，观察日志和信号。实盘前还应补充：交易所持仓同步、订单成交确认、精度/最小下单量校验、手续费、限频、断线恢复、持久化和人工急停。
+启动前请确认：
+
+- API Key 没有提现权限
+- API Key 尽量绑定固定 IP
+- 使用独立小额账户
+- 已完成回测和足够长时间的 paper 验证
+- 已设置单笔额度、最大仓位、每日最大亏损
+- 已准备人工急停和日志监控
+
+程序在实盘模式下仍然会阻止 SELL，直到实现真实持仓同步、订单成交确认和部分成交处理；这是故意的安全限制。
+
+## 4. 当前限制
+
+- 回测是简化的收盘价模型，未模拟滑点和订单簿深度。
+- 多源行情可能存在延迟、缺失或格式差异。
+- 新闻只作为记录信息，不能证明方向。
+- 当前实盘路径未完成持仓 reconciliation，因此不允许卖出。
+- 任何配置错误、数据源不一致或网络异常都应保持不交易。
+
+不要把 `.env` 提交到 GitHub，也不要在聊天中发送 API Secret。此项目不保证盈利。

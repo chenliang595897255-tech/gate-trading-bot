@@ -11,7 +11,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 def main():
     config = Config.from_env()
     gate = GateClient(config.api_key, config.api_secret, config.gate_base_url, config.timeout)
-    logging.warning("live_orders_allowed=%s; DRY_RUN=%s", config.live_orders_allowed(), config.dry_run)
+    if config.run_mode == "live" and not config.live_orders_allowed():
+        raise SystemExit(
+            "Live mode is armed incorrectly. Set LIVE_ARMED=true, "
+            "LIVE_CONFIRMATION=I_UNDERSTAND_RISK, and valid API credentials."
+        )
+    logging.warning("run_mode=%s; live_orders_allowed=%s", config.run_mode, config.live_orders_allowed())
     while True:
         try:
             markets = market_snapshots(config.pair, config.timeout)
@@ -19,17 +24,14 @@ def main():
             decision = aggregate(markets, news)
             logging.info("decision=%s confidence=%.2f price=%.8f rationale=%s", decision.action, decision.confidence, decision.price, decision.rationale)
             if decision.action in ("BUY", "SELL") and decision.confidence >= 0.70:
-                if not config.live_orders_allowed():
-                    logging.warning("proposal only; live order blocked: %s", decision.action)
+                if config.run_mode != "live":
+                    logging.info("PAPER PROPOSAL ONLY: %s", decision.action)
+                elif decision.action == "SELL":
+                    logging.error("SELL blocked until exchange position reconciliation is implemented")
                 else:
-                    if decision.action == "BUY":
-                        amount = f"{config.order_usdt / decision.price:.8f}"
-                    else:
-                        logging.warning("SELL requires an independently verified local position; no sell was sent")
-                        amount = None
-                    if amount:
-                        order = gate.market_order(config.pair, decision.action.lower(), amount)
-                        logging.warning("LIVE ORDER SENT: %s", order)
+                    amount = f"{config.order_usdt / decision.price:.8f}"
+                    order = gate.market_order(config.pair, "buy", amount)
+                    logging.warning("LIVE ORDER SENT: %s", order)
         except Exception:
             logging.exception("analysis cycle failed")
         time.sleep(config.loop_seconds)
