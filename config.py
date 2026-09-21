@@ -33,6 +33,10 @@ class Config:
     max_quote_age_seconds: int
     min_market_sources: int
     min_confidence: float
+    order_poll_seconds: int
+    order_timeout_seconds: int
+    max_slippage_percent: float
+    max_open_orders: int
     gate_base_url: str
 
     @classmethod
@@ -41,32 +45,27 @@ class Config:
         if mode not in {"paper", "live"}:
             raise ValueError("RUN_MODE must be paper or live")
         return cls(
-            api_key=env("GATE_API_KEY"),
-            api_secret=env("GATE_API_SECRET"),
-            pair=env("TRADING_PAIR", "BTC_USDT"),
-            order_usdt=float(env("ORDER_USDT", "20")),
+            api_key=env("GATE_API_KEY"), api_secret=env("GATE_API_SECRET"),
+            pair=env("TRADING_PAIR", "BTC_USDT"), order_usdt=float(env("ORDER_USDT", "20")),
             max_position_usdt=float(env("MAX_POSITION_USDT", "100")),
             max_daily_loss_usdt=float(env("MAX_DAILY_LOSS_USDT", "50")),
             stop_loss_percent=float(env("STOP_LOSS_PERCENT", "0.02")),
             take_profit_percent=float(env("TAKE_PROFIT_PERCENT", "0.04")),
-            loop_seconds=int(env("LOOP_SECONDS", "300")),
-            run_mode=mode,
-            live_confirmation=env("LIVE_CONFIRMATION"),
-            live_armed=boolean("LIVE_ARMED"),
-            timeout=int(env("DATA_TIMEOUT_SECONDS", "10")),
-            news_enabled=boolean("NEWS_ENABLED", "true"),
+            loop_seconds=int(env("LOOP_SECONDS", "300")), run_mode=mode,
+            live_confirmation=env("LIVE_CONFIRMATION"), live_armed=boolean("LIVE_ARMED"),
+            timeout=int(env("DATA_TIMEOUT_SECONDS", "10")), news_enabled=boolean("NEWS_ENABLED", "true"),
             news_max_items=int(env("NEWS_MAX_ITEMS", "20")),
             max_quote_age_seconds=int(env("MAX_QUOTE_AGE_SECONDS", "30")),
             min_market_sources=int(env("MIN_MARKET_SOURCES", "3")),
             min_confidence=float(env("MIN_SIGNAL_CONFIDENCE", "0.70")),
+            order_poll_seconds=int(env("ORDER_POLL_SECONDS", "2")),
+            order_timeout_seconds=int(env("ORDER_TIMEOUT_SECONDS", "30")),
+            max_slippage_percent=float(env("MAX_SLIPPAGE_PERCENT", "0.50")),
+            max_open_orders=int(env("MAX_OPEN_ORDERS", "1")),
             gate_base_url=env("GATE_API_BASE_URL", "https://api.gateio.ws").rstrip("/"),
         )
 
     def live_orders_allowed(self) -> bool:
-        return all((
-            self.run_mode == "live",
-            self.live_armed,
-            self.live_confirmation == "I_UNDERSTAND_RISK",
-            bool(self.api_key),
-            bool(self.api_secret),
-        ))
+        return all((self.run_mode == "live", self.live_armed,
+                    self.live_confirmation == "I_UNDERSTAND_RISK",
+                    bool(self.api_key), bool(self.api_secret)))
